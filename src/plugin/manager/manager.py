@@ -1,5 +1,6 @@
 import json
 import uuid
+import copy
 from spaceone.core.manager import BaseManager
 from spaceone.core.error import *
 from spaceone.identity.plugin.account_collector.model.account_collect_response import (
@@ -13,49 +14,24 @@ class AccountsManager(BaseManager):
     def __init__(self, params):
         super().__init__()
         self._account_connector = AccountsConnector(**params)
+        self.synced_accounts = []
+        self.account_paths = {}
 
     def collect_accounts(self):
-        unsynced_accounts = []
-        try:
-            root_info = self._account_connector.get_root_account_info()
-            management_account_root_id = root_info["Roots"][0]["Id"]
-            management_account_id = self._account_connector.get_management_account_id()
-            ou_ids = self._get_all_ou_ids(management_account_root_id)
-            for ou_id in ou_ids:
-                member_accounts = self._get_all_ou_member_accounts(ou_id)
-                for member_account_id in member_accounts:
-                    spaceone_role_exists = self._account_connector.role_exists(
-                        member_account_id, DEFAULT_ROLE_NAME
-                    )
-                    if not spaceone_role_exists:
-                        external_id = str(uuid.uuid4())
-                        account_name, role_arn = self._create_iam_role(
-                            management_account_id, member_account_id, external_id
-                        )
+        root_info = self._account_connector.get_root_account_info()
+        management_account_root_id = root_info["Roots"][0]["Id"]
+        management_account_root_name = root_info["Roots"][0]["Name"]
+        management_account_id = self._account_connector.get_management_account_id()
+        self._map_all_ous(management_account_root_id, [management_account_root_name])
 
-                        # SpaceONE Console 상에서 General Account 추가 시 필요한 데이터 중, "프로젝트"는?
-                        # role_arn, external_id 는 response_secret_data 에 넣는 것이 맞을까?
-                        response_data = {
-                            "role_arn": role_arn,
-                            "external_id": external_id,
-                            "account_id": member_account_id,
-                        }
-                        response_secret_data = {}
-
-                        # multiple schema ids? -> aws_assume_role_with_external_id, aws_assume_role, aws_access_key?
-                        response_schema_ids = "aws_assume_role_with_external_id"
-
-                        response_result = {
-                            "name": account_name,
-                            "data": response_data,
-                            "secret_schema_id": response_schema_ids,
-                        }
-                        unsynced_accounts.append(AccountResponse(**response_result))
-
-        except Exception as e:
-            print(e)
-
-        return unsynced_accounts
+        for ou_id in self.account_paths:
+            ou_info = self._account_connector.get_ou_name(ou_id)
+            ou_name = ou_info["OrganizationalUnit"]["Name"]
+            if ou_name == SECURITY_OU_NAME:
+                self._sync_security_accounts(ou_id)
+            else:
+                self._sync_other_member_accounts(management_account_id, ou_id)
+        return self.synced_accounts
 
     def _create_iam_role(self, parent_account_id, child_account_id, external_id):
         assume_role_policy_document = json.dumps(
@@ -71,25 +47,78 @@ class AccountsManager(BaseManager):
                 ],
             }
         )
-
         member_account_name = self._account_connector.get_account_name(child_account_id)
         if not member_account_name:
             member_account_name = f"Member Account {child_account_id}"
-
         new_role = self._account_connector.generate_new_role(
             child_account_id, CONTROL_TOWER_ROLE_NAME, assume_role_policy_document
         )
         return [member_account_name, new_role["Role"]["Arn"]]
 
-    def _get_all_ou_ids(self, parent_ou_id):
-        full_result = []
-        iterator = self._account_connector.get_ou_ids(parent_ou_id)
+    def _sync_other_member_accounts(self, management_account_id, ou_id) -> None:
+        member_accounts = self._get_all_ou_member_accounts(ou_id)
+        for member_account_id in member_accounts:
+            spaceone_role_exists = self._account_connector.role_exists(
+                member_account_id, DEFAULT_ROLE_NAME
+            )
+            account_name, external_id, role_arn = None, None, None
+            if not spaceone_role_exists:
+                external_id = str(uuid.uuid4())
+                account_name, role_arn = self._create_iam_role(
+                    management_account_id, member_account_id, external_id
+                )
+            else:
+                account_name, external_id, role_arn = self._get_spaceone_role_info(
+                    member_account_id
+                )
+            response_data = {}
+            response_secret_data = {
+                "external_id": external_id,
+                "account_id": member_account_id,
+                "role_arn": role_arn,
+            }
+            response_schema_id = "aws_assume_role_with_external_id"
 
+            response_result = {
+                "name": account_name,
+                "data": response_data,
+                "secret_schema_id": response_schema_id,
+                "secret_data": response_secret_data,
+                "location": self.account_paths[ou_id],
+            }
+
+            self.synced_accounts.append(AccountResponse(**response_result).dict())
+
+    def _sync_security_accounts(self, ou_id):
+        member_accounts = self._get_all_ou_member_accounts(ou_id)
+
+        for member_account_id in member_accounts:
+            account_name = self._account_connector.get_account_name(member_account_id)
+            response_data = {}
+            response_secret_data = {"account_id": member_account_id}
+            response_schema_id = "aws_access_key"
+
+            response_result = {
+                "name": account_name,
+                "data": response_data,
+                "secret_schema_id": response_schema_id,
+                "secret_data": response_secret_data,
+                "location": self.account_paths[ou_id],
+            }
+
+            self.synced_accounts.append(AccountResponse(**response_result).dict())
+
+    def _map_all_ous(self, parent_ou_id, path):
+        iterator = self._account_connector.get_ou_ids(parent_ou_id)
         for page in iterator:
-            for ou in page["Children"]:
-                full_result.append(ou["Id"])
-                full_result.extend(self._get_all_ou_ids(ou["Id"]))
-        return full_result
+            for child in page["Children"]:
+                ou_info = self._account_connector.get_ou_name(child["Id"])
+                ou_name = ou_info["OrganizationalUnit"]["Name"]
+                path.append(ou_name)
+                self._map_all_ous(child["Id"], path)
+                final_path = copy.deepcopy(path)
+                self.account_paths[child["Id"]] = final_path
+                path.pop()
 
     def _get_all_ou_member_accounts(self, ou_id):
         accounts = []
@@ -97,3 +126,12 @@ class AccountsManager(BaseManager):
         for result in results:
             accounts.append(result["Id"])
         return accounts
+
+    def _get_spaceone_role_info(self, member_account_id):
+        role_info = self._account_connector.get_assumed_role_info(member_account_id)
+        account_name = self._account_connector.get_account_name(member_account_id)
+        policy_document = role_info["Role"]["AssumeRolePolicyDocument"]
+        policy_condition = policy_document["Statement"][0]["Condition"]
+        external_id = policy_condition["StringEquals"]["sts:ExternalId"]
+        role_arn = role_info["Role"]["Arn"]
+        return [account_name, external_id, role_arn]

@@ -1,8 +1,8 @@
 from functools import partial
 import json
 from boto3.session import Session
-from spaceone.core.connector import BaseConnector
 from ..conf.account_conf import *
+from spaceone.core.connector import BaseConnector
 
 
 def get_session(secret_data, region_name):
@@ -53,27 +53,16 @@ class AccountsConnector(BaseConnector):
         return self.__getattribute__(name)
 
     def get_accounts_ou(self, ou_id):
-        results = []
-        try:
-            results = self._management_account_org_client.list_accounts_for_parent(
-                ParentId=ou_id
-            )["Accounts"]
-        except Exception as e:
-            print("Unable to get Accounts list: " + str(e))
+        results = self._management_account_org_client.list_accounts_for_parent(
+            ParentId=ou_id
+        )["Accounts"]
         return results
 
     def get_ou_ids(self, parent_id):
-        try:
-            paginator = self._management_account_org_client.get_paginator(
-                "list_children"
-            )
-            iterator = paginator.paginate(
-                ParentId=parent_id, ChildType="ORGANIZATIONAL_UNIT"
-            )
-        except Exception as e:
-            print("Unable to paginate: " + str(e))
-            return
-
+        paginator = self._management_account_org_client.get_paginator("list_children")
+        iterator = paginator.paginate(
+            ParentId=parent_id, ChildType="ORGANIZATIONAL_UNIT"
+        )
         return iterator
 
     def try_assume_role(self, account_number, role_name):
@@ -81,15 +70,9 @@ class AccountsConnector(BaseConnector):
             "Arn"
         ].split(":")[1]
         role_arn = "arn:{}:iam::{}:role/{}".format(partition, account_number, role_name)
-
-        result = dict()
-        try:
-            result = self.management_account_sts_client.assume_role(
-                RoleArn=role_arn, RoleSessionName=str(account_number + "-" + role_name)
-            )
-        except Exception as e:
-            print(e)
-
+        result = self.management_account_sts_client.assume_role(
+            RoleArn=role_arn, RoleSessionName=str(account_number + "-" + role_name)
+        )
         return result
 
     def get_assumed_session(self, account_number, role_name):
@@ -129,14 +112,10 @@ class AccountsConnector(BaseConnector):
         return response
 
     def get_account_name(self, child_account_id):
-        try:
-            account_info = self.management_account_org_client.describe_account(
-                AccountId=child_account_id
-            )
-            return account_info["Account"]["Name"]
-        except Exception as e:
-            print("Unable to get Account Name: " + str(e))
-            return None
+        account_info = self.management_account_org_client.describe_account(
+            AccountId=child_account_id
+        )
+        return account_info["Account"]["Name"]
 
     def role_exists(self, member_account_id, role_name):
         account_session = self.get_assumed_session(
@@ -148,3 +127,19 @@ class AccountsConnector(BaseConnector):
             return True
         except iam.exceptions.NoSuchEntityException:
             return False
+
+    def get_assumed_role_info(self, member_account_id):
+        account_session = self.get_assumed_session(
+            member_account_id, CONTROL_TOWER_ROLE_NAME
+        )
+        iam = account_session.client("iam")
+        role_info = iam.get_role(RoleName=DEFAULT_ROLE_NAME)
+        return role_info
+
+    def get_ou_name(self, ou_id):
+        org_client = self.management_account_org_client
+        ou_info = org_client.describe_organizational_unit(OrganizationalUnitId=ou_id)
+        return ou_info
+
+    def list_parents(self, accnt):
+        return self.management_account_org_client.list_parents(ChildId=accnt)["Parents"]

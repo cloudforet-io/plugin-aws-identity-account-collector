@@ -53,5 +53,6 @@ def account_collector_sync(params: dict) -> dict:
         }
     """
     accounts_manager = AccountsManager(params)
-    result = accounts_manager.collect_accounts()
-    return {"results": result}
+    results = accounts_manager.collect_accounts()
+    print(results)
+    return {"results": results}
