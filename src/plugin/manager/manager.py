@@ -17,7 +17,7 @@ class AccountsManager(BaseManager):
         self.synced_accounts = []
         self.account_paths = {}
 
-    def collect_accounts(self):
+    def collect_accounts(self) -> list:
         root_info = self._account_connector.get_root_account_info()
         management_account_root_id = root_info["Roots"][0]["Id"]
         management_account_root_name = root_info["Roots"][0]["Name"]
@@ -33,7 +33,9 @@ class AccountsManager(BaseManager):
                 self._sync_other_member_accounts(management_account_id, ou_id)
         return self.synced_accounts
 
-    def _create_iam_role(self, parent_account_id, child_account_id, external_id):
+    def _create_iam_role(
+        self, parent_account_id: str, child_account_id: str, external_id: str
+    ) -> list:
         assume_role_policy_document = json.dumps(
             {
                 "Version": "2012-10-17",
@@ -55,41 +57,43 @@ class AccountsManager(BaseManager):
         )
         return [member_account_name, new_role["Role"]["Arn"]]
 
-    def _sync_other_member_accounts(self, management_account_id, ou_id) -> None:
+    def _sync_other_member_accounts(
+        self, management_account_id: str, ou_id: str
+    ) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
         for member_account_id in member_accounts:
-            spaceone_role_exists = self._account_connector.role_exists(
-                member_account_id, DEFAULT_ROLE_NAME
-            )
-            account_name, external_id, role_arn = None, None, None
-            if not spaceone_role_exists:
-                external_id = str(uuid.uuid4())
-                account_name, role_arn = self._create_iam_role(
-                    management_account_id, member_account_id, external_id
+            if member_account_id == "260966982575":
+                spaceone_role_exists = self._account_connector.role_exists(
+                    member_account_id, DEFAULT_ROLE_NAME
                 )
-            else:
-                account_name, external_id, role_arn = self._get_spaceone_role_info(
-                    member_account_id
-                )
-            response_data = {}
-            response_secret_data = {
-                "external_id": external_id,
-                "account_id": member_account_id,
-                "role_arn": role_arn,
-            }
-            response_schema_id = "aws_assume_role_with_external_id"
+                account_name, external_id, role_arn = None, None, None
+                if not spaceone_role_exists:
+                    external_id = str(uuid.uuid4())
+                    account_name, role_arn = self._create_iam_role(
+                        management_account_id, member_account_id, external_id
+                    )
+                else:
+                    account_name, external_id, role_arn = self._get_spaceone_role_info(
+                        member_account_id
+                    )
+                response_data = {}
+                response_secret_data = {
+                    "external_id": external_id,
+                    "account_id": member_account_id,
+                    "role_arn": role_arn,
+                }
+                response_schema_id = "aws_assume_role_with_external_id"
 
-            response_result = {
-                "name": account_name,
-                "data": response_data,
-                "secret_schema_id": response_schema_id,
-                "secret_data": response_secret_data,
-                "location": self.account_paths[ou_id],
-            }
+                response_result = {
+                    "name": account_name,
+                    "data": response_data,
+                    "secret_schema_id": response_schema_id,
+                    "secret_data": response_secret_data,
+                    "location": self.account_paths[ou_id],
+                }
+                self.synced_accounts.append(AccountResponse(**response_result).dict())
 
-            self.synced_accounts.append(AccountResponse(**response_result).dict())
-
-    def _sync_security_accounts(self, ou_id):
+    def _sync_security_accounts(self, ou_id: str) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
 
         for member_account_id in member_accounts:
@@ -108,7 +112,7 @@ class AccountsManager(BaseManager):
 
             self.synced_accounts.append(AccountResponse(**response_result).dict())
 
-    def _map_all_ous(self, parent_ou_id, path):
+    def _map_all_ous(self, parent_ou_id: str, path: list) -> None:
         iterator = self._account_connector.get_ou_ids(parent_ou_id)
         for page in iterator:
             for child in page["Children"]:
@@ -120,14 +124,14 @@ class AccountsManager(BaseManager):
                 self.account_paths[child["Id"]] = final_path
                 path.pop()
 
-    def _get_all_ou_member_accounts(self, ou_id):
+    def _get_all_ou_member_accounts(self, ou_id: str) -> list:
         accounts = []
         results = self._account_connector.get_accounts_ou(ou_id)
         for result in results:
             accounts.append(result["Id"])
         return accounts
 
-    def _get_spaceone_role_info(self, member_account_id):
+    def _get_spaceone_role_info(self, member_account_id: str) -> list:
         role_info = self._account_connector.get_assumed_role_info(member_account_id)
         account_name = self._account_connector.get_account_name(member_account_id)
         policy_document = role_info["Role"]["AssumeRolePolicyDocument"]

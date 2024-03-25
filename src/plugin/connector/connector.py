@@ -21,10 +21,7 @@ class AccountsConnector(BaseConnector):
         super().__init__()
 
         self.secret_data = kwargs.get("secret_data")
-
-        # Region Name은 어떻게 받는지? 아니면 default값인 ap-northeast-2로 고정하는 것인지?
         self.region_name = kwargs.get("region_name", DEFAULT_REGION)
-
         self._session = None
         self._management_account_org_client = None
         self._management_account_sts_client = None
@@ -52,20 +49,20 @@ class AccountsConnector(BaseConnector):
             self.__setattr__(name, init_data())
         return self.__getattribute__(name)
 
-    def get_accounts_ou(self, ou_id):
+    def get_accounts_ou(self, ou_id: str) -> list:
         results = self._management_account_org_client.list_accounts_for_parent(
             ParentId=ou_id
         )["Accounts"]
         return results
 
-    def get_ou_ids(self, parent_id):
+    def get_ou_ids(self, parent_id: str) -> list:
         paginator = self._management_account_org_client.get_paginator("list_children")
         iterator = paginator.paginate(
             ParentId=parent_id, ChildType="ORGANIZATIONAL_UNIT"
         )
         return iterator
 
-    def try_assume_role(self, account_number, role_name):
+    def try_assume_role(self, account_number: str, role_name: str) -> dict:
         partition = self.management_account_sts_client.get_caller_identity()[
             "Arn"
         ].split(":")[1]
@@ -75,7 +72,7 @@ class AccountsConnector(BaseConnector):
         )
         return result
 
-    def get_assumed_session(self, account_number, role_name):
+    def get_assumed_session(self, account_number: str, role_name: str):
         response = self.try_assume_role(account_number, role_name)
         if "Credentials" in response:
             assumed_sts_session = Session(
@@ -85,15 +82,15 @@ class AccountsConnector(BaseConnector):
             )
             return assumed_sts_session
 
-    def get_root_account_info(self):
+    def get_root_account_info(self) -> dict:
         return self.management_account_org_client.list_roots()
 
-    def get_management_account_id(self):
+    def get_management_account_id(self) -> str:
         return self.management_account_sts_client.get_caller_identity()["Account"]
 
     def generate_new_role(
-        self, child_account_id, role_name, assume_role_policy_document
-    ):
+        self, child_account_id: str, role_name: str, assume_role_policy_document: dict
+    ) -> dict:
         member_account_session = self.get_assumed_session(child_account_id, role_name)
 
         iam = member_account_session.client("iam")
@@ -111,13 +108,13 @@ class AccountsConnector(BaseConnector):
 
         return response
 
-    def get_account_name(self, child_account_id):
+    def get_account_name(self, child_account_id: str) -> str:
         account_info = self.management_account_org_client.describe_account(
             AccountId=child_account_id
         )
         return account_info["Account"]["Name"]
 
-    def role_exists(self, member_account_id, role_name):
+    def role_exists(self, member_account_id: str, role_name: str) -> bool:
         account_session = self.get_assumed_session(
             member_account_id, CONTROL_TOWER_ROLE_NAME
         )
@@ -128,7 +125,7 @@ class AccountsConnector(BaseConnector):
         except iam.exceptions.NoSuchEntityException:
             return False
 
-    def get_assumed_role_info(self, member_account_id):
+    def get_assumed_role_info(self, member_account_id: str) -> dict:
         account_session = self.get_assumed_session(
             member_account_id, CONTROL_TOWER_ROLE_NAME
         )
@@ -136,10 +133,12 @@ class AccountsConnector(BaseConnector):
         role_info = iam.get_role(RoleName=DEFAULT_ROLE_NAME)
         return role_info
 
-    def get_ou_name(self, ou_id):
+    def get_ou_name(self, ou_id: str) -> dict:
         org_client = self.management_account_org_client
         ou_info = org_client.describe_organizational_unit(OrganizationalUnitId=ou_id)
         return ou_info
 
-    def list_parents(self, accnt):
-        return self.management_account_org_client.list_parents(ChildId=accnt)["Parents"]
+    def list_parents(self, account: str) -> list:
+        return self.management_account_org_client.list_parents(ChildId=account)[
+            "Parents"
+        ]
