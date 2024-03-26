@@ -2,6 +2,8 @@ from spaceone.identity.plugin.account_collector.lib.server import (
     AccountCollectorPluginServer,
 )
 
+from plugin.manager.manager import AccountsManager
+
 app = AccountCollectorPluginServer()
 
 
@@ -50,4 +52,7 @@ def account_collector_sync(params: dict) -> dict:
             ]
         }
     """
-    return {"results": []}
+    accounts_manager = AccountsManager(params)
+    results = accounts_manager.collect_accounts()
+    print(results)
+    return {"results": results}
