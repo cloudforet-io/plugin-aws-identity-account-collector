@@ -1,6 +1,7 @@
 import json
 import uuid
 import copy
+from collections import deque
 from spaceone.core.manager import BaseManager
 from spaceone.core.error import *
 from spaceone.identity.plugin.account_collector.model.account_collect_response import (
@@ -62,36 +63,35 @@ class AccountsManager(BaseManager):
     ) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
         for member_account_id in member_accounts:
-            if member_account_id == "260966982575":
-                spaceone_role_exists = self._account_connector.role_exists(
-                    member_account_id, DEFAULT_ROLE_NAME
+            spaceone_role_exists = self._account_connector.role_exists(
+                member_account_id, DEFAULT_ROLE_NAME
+            )
+            account_name, external_id, role_arn = None, None, None
+            if not spaceone_role_exists:
+                external_id = str(uuid.uuid4())
+                account_name, role_arn = self._create_iam_role(
+                    management_account_id, member_account_id, external_id
                 )
-                account_name, external_id, role_arn = None, None, None
-                if not spaceone_role_exists:
-                    external_id = str(uuid.uuid4())
-                    account_name, role_arn = self._create_iam_role(
-                        management_account_id, member_account_id, external_id
-                    )
-                else:
-                    account_name, external_id, role_arn = self._get_spaceone_role_info(
-                        member_account_id
-                    )
-                response_data = {}
-                response_secret_data = {
-                    "external_id": external_id,
-                    "account_id": member_account_id,
-                    "role_arn": role_arn,
-                }
-                response_schema_id = "aws_assume_role_with_external_id"
+            else:
+                account_name, external_id, role_arn = self._get_spaceone_role_info(
+                    member_account_id
+                )
+            response_data = {}
+            response_secret_data = {
+                "external_id": external_id,
+                "account_id": member_account_id,
+                "role_arn": role_arn,
+            }
+            response_schema_id = "aws_assume_role_with_external_id"
 
-                response_result = {
-                    "name": account_name,
-                    "data": response_data,
-                    "secret_schema_id": response_schema_id,
-                    "secret_data": response_secret_data,
-                    "location": self.account_paths[ou_id],
-                }
-                self.synced_accounts.append(AccountResponse(**response_result).dict())
+            response_result = {
+                "name": account_name,
+                "data": response_data,
+                "secret_schema_id": response_schema_id,
+                "secret_data": response_secret_data,
+                "location": self.account_paths[ou_id],
+            }
+            self.synced_accounts.append(AccountResponse(**response_result).dict())
 
     def _sync_security_accounts(self, ou_id: str) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
