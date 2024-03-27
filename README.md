@@ -47,7 +47,13 @@
       features can be accessed by the accounts within an AWS Organization, or within specific OUs or individual
       accounts.
 
-## Code Flow
+## Code Flow (Version 1)
 
 ![sync_aws_account_flow](https://github.com/Sooyoung98/plugin-aws-identity-account-collector/assets/79274380/bd4abed5-88de-4223-a0fd-7a2fabc2f73f)
+
+
+## Code Flow (Version 2)
+
+![account_sync_v3](https://github.com/Sooyoung98/plugin-aws-identity-account-collector/assets/79274380/bd9bbfd4-beff-4aba-97f9-a7eda2d8911e)
+
 
