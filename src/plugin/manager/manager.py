@@ -24,14 +24,14 @@ class AccountsManager(BaseManager):
         management_account_root_name = root_info["Roots"][0]["Name"]
         management_account_id = self._account_connector.get_management_account_id()
         self._map_all_ous(management_account_root_id, [management_account_root_name])
-        print(self.account_paths)
-        # for ou_id in self.account_paths:
-        #     ou_info = self._account_connector.get_ou_name(ou_id)
-        #     ou_name = ou_info["OrganizationalUnit"]["Name"]
-        #     if ou_name == SECURITY_OU_NAME:
-        #         self._sync_security_accounts(ou_id)
-        #     else:
-        #         self._sync_other_member_accounts(management_account_id, ou_id)
+
+        for ou_id in self.account_paths:
+            ou_info = self._account_connector.get_ou_name(ou_id)
+            ou_name = ou_info["OrganizationalUnit"]["Name"]
+            if ou_name == SECURITY_OU_NAME:
+                self._sync_security_accounts(ou_id)
+            else:
+                self._sync_other_member_accounts(management_account_id, ou_id)
         return self.synced_accounts
 
     def _create_iam_role(
@@ -63,35 +63,36 @@ class AccountsManager(BaseManager):
     ) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
         for member_account_id in member_accounts:
-            spaceone_role_exists = self._account_connector.role_exists(
-                member_account_id, DEFAULT_ROLE_NAME
-            )
-            account_name, external_id, role_arn = None, None, None
-            if not spaceone_role_exists:
-                external_id = str(uuid.uuid4())
-                account_name, role_arn = self._create_iam_role(
-                    management_account_id, member_account_id, external_id
+            if member_account_id == "260966982575":
+                spaceone_role_exists = self._account_connector.role_exists(
+                    member_account_id, DEFAULT_ROLE_NAME
                 )
-            else:
-                account_name, external_id, role_arn = self._get_spaceone_role_info(
-                    member_account_id
-                )
-            response_data = {}
-            response_secret_data = {
-                "external_id": external_id,
-                "account_id": member_account_id,
-                "role_arn": role_arn,
-            }
-            response_schema_id = "aws_assume_role_with_external_id"
+                account_name, external_id, role_arn = None, None, None
+                if not spaceone_role_exists:
+                    external_id = str(uuid.uuid4())
+                    account_name, role_arn = self._create_iam_role(
+                        management_account_id, member_account_id, external_id
+                    )
+                else:
+                    account_name, external_id, role_arn = self._get_spaceone_role_info(
+                        member_account_id
+                    )
+                response_data = {}
+                response_secret_data = {
+                    "external_id": external_id,
+                    "account_id": member_account_id,
+                    "role_arn": role_arn,
+                }
+                response_schema_id = "aws_assume_role_with_external_id"
 
-            response_result = {
-                "name": account_name,
-                "data": response_data,
-                "secret_schema_id": response_schema_id,
-                "secret_data": response_secret_data,
-                "location": self.account_paths[ou_id],
-            }
-            self.synced_accounts.append(AccountResponse(**response_result).dict())
+                response_result = {
+                    "name": account_name,
+                    "data": response_data,
+                    "secret_schema_id": response_schema_id,
+                    "secret_data": response_secret_data,
+                    "location": self.account_paths[ou_id],
+                }
+                self.synced_accounts.append(AccountResponse(**response_result).dict())
 
     def _sync_security_accounts(self, ou_id: str) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
