@@ -24,14 +24,14 @@ class AccountsManager(BaseManager):
         management_account_root_name = root_info["Roots"][0]["Name"]
         management_account_id = self._account_connector.get_management_account_id()
         self._map_all_ous(management_account_root_id, [management_account_root_name])
-
-        for ou_id in self.account_paths:
-            ou_info = self._account_connector.get_ou_name(ou_id)
-            ou_name = ou_info["OrganizationalUnit"]["Name"]
-            if ou_name == SECURITY_OU_NAME:
-                self._sync_security_accounts(ou_id)
-            else:
-                self._sync_other_member_accounts(management_account_id, ou_id)
+        print(self.account_paths)
+        # for ou_id in self.account_paths:
+        #     ou_info = self._account_connector.get_ou_name(ou_id)
+        #     ou_name = ou_info["OrganizationalUnit"]["Name"]
+        #     if ou_name == SECURITY_OU_NAME:
+        #         self._sync_security_accounts(ou_id)
+        #     else:
+        #         self._sync_other_member_accounts(management_account_id, ou_id)
         return self.synced_accounts
 
     def _create_iam_role(
@@ -113,16 +113,22 @@ class AccountsManager(BaseManager):
             self.synced_accounts.append(AccountResponse(**response_result).dict())
 
     def _map_all_ous(self, parent_ou_id: str, path: list) -> None:
-        iterator = self._account_connector.get_ou_ids(parent_ou_id)
-        for page in iterator:
-            for child in page["Children"]:
-                ou_info = self._account_connector.get_ou_name(child["Id"])
-                ou_name = ou_info["OrganizationalUnit"]["Name"]
-                path.append(ou_name)
-                self._map_all_ous(child["Id"], path)
-                final_path = copy.deepcopy(path)
-                self.account_paths[child["Id"]] = final_path
-                path.pop()
+        dq = deque()
+        dq.append([parent_ou_id, path])
+        while dq:
+            for i in range(len(dq)):
+                parent_id, current_path = dq.popleft()
+                iterator = self._account_connector.get_ou_ids(parent_id)
+                for page in iterator:
+                    children = page["Children"]
+                    for child in children:
+                        ou_info = self._account_connector.get_ou_name(child["Id"])
+                        ou_name = ou_info["OrganizationalUnit"]["Name"]
+                        current_path.append(ou_name)
+                        next_path = copy.deepcopy(current_path)
+                        self.account_paths[child["Id"]] = next_path
+                        dq.append([child["Id"], next_path])
+                        current_path.pop()
 
     def _get_all_ou_member_accounts(self, ou_id: str) -> list:
         accounts = []

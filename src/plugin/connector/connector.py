@@ -1,5 +1,4 @@
 from functools import partial
-import json
 from boto3.session import Session
 from ..conf.account_conf import *
 from spaceone.core.connector import BaseConnector
