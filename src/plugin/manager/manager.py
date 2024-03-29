@@ -23,10 +23,13 @@ class AccountsManager(BaseManager):
         management_account_root_id = root_info["Roots"][0]["Id"]
         management_account_root_name = root_info["Roots"][0]["Name"]
         management_account_id = self._account_connector.get_management_account_id()
-        self._map_all_ous(management_account_root_id, [management_account_root_name])
-
+        starting_path_dict = {
+            "name": management_account_root_name,
+            "resource_id": management_account_root_id,
+        }
+        self._map_all_ous(management_account_root_id, [starting_path_dict])
         for ou_id in self.account_paths:
-            ou_info = self._account_connector.get_ou_name(ou_id)
+            ou_info = self._account_connector.get_ou_info(ou_id)
             ou_name = ou_info["OrganizationalUnit"]["Name"]
             if ou_name == SECURITY_OU_NAME:
                 self._sync_security_accounts(ou_id)
@@ -88,6 +91,7 @@ class AccountsManager(BaseManager):
                 response_result = {
                     "name": account_name,
                     "data": response_data,
+                    "resource_id": member_account_id,
                     "secret_schema_id": response_schema_id,
                     "secret_data": response_secret_data,
                     "location": self.account_paths[ou_id],
@@ -106,6 +110,7 @@ class AccountsManager(BaseManager):
             response_result = {
                 "name": account_name,
                 "data": response_data,
+                "resource_id": member_account_id,
                 "secret_schema_id": response_schema_id,
                 "secret_data": response_secret_data,
                 "location": self.account_paths[ou_id],
@@ -123,9 +128,11 @@ class AccountsManager(BaseManager):
                 for page in iterator:
                     children = page["Children"]
                     for child in children:
-                        ou_info = self._account_connector.get_ou_name(child["Id"])
+                        ou_info = self._account_connector.get_ou_info(child["Id"])
                         ou_name = ou_info["OrganizationalUnit"]["Name"]
-                        current_path.append(ou_name)
+                        ou_id = ou_info["OrganizationalUnit"]["Id"]
+                        ou_dict = {"name": ou_name, "resource_id": ou_id}
+                        current_path.append(ou_dict)
                         next_path = copy.deepcopy(current_path)
                         self.account_paths[child["Id"]] = next_path
                         dq.append([child["Id"], next_path])

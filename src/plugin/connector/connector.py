@@ -132,7 +132,7 @@ class AccountsConnector(BaseConnector):
         role_info = iam.get_role(RoleName=DEFAULT_ROLE_NAME)
         return role_info
 
-    def get_ou_name(self, ou_id: str) -> dict:
+    def get_ou_info(self, ou_id: str) -> dict:
         org_client = self.management_account_org_client
         ou_info = org_client.describe_organizational_unit(OrganizationalUnitId=ou_id)
         return ou_info
