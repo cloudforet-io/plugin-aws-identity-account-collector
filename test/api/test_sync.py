@@ -42,6 +42,7 @@ class TestSync(TestCase):
         "aws_access_key_id": AKI,
         "aws_secret_access_key": SAK,
         "aws_session_token": AST,
+        "external_id": "9d46484b-039f-4407-8ffb-d5157fa64ecf",
     }
 
     def test_init(self):
