@@ -24,6 +24,8 @@ class AccountsConnector(BaseConnector):
         self._session = None
         self._management_account_org_client = None
         self._management_account_sts_client = None
+        self.external_id = self.secret_data["external_id"]
+        self.spaceone_role_name = self.secret_data["role_name"]
 
     @property
     def session(self):
@@ -61,18 +63,22 @@ class AccountsConnector(BaseConnector):
         )
         return iterator
 
-    def try_assume_role(self, account_number: str, role_name: str) -> dict:
+    def try_assume_role(self, account_number: str) -> dict:
         partition = self.management_account_sts_client.get_caller_identity()[
             "Arn"
         ].split(":")[1]
-        role_arn = "arn:{}:iam::{}:role/{}".format(partition, account_number, role_name)
+        role_arn = "arn:{}:iam::{}:role/{}".format(
+            partition, account_number, self.spaceone_role_name
+        )
         result = self.management_account_sts_client.assume_role(
-            RoleArn=role_arn, RoleSessionName=str(account_number + "-" + role_name)
+            RoleArn=role_arn,
+            RoleSessionName=str(account_number + "-" + self.spaceone_role_name),
+            ExternalId=self.external_id,
         )
         return result
 
-    def get_assumed_session(self, account_number: str, role_name: str):
-        response = self.try_assume_role(account_number, role_name)
+    def get_assumed_session(self, account_number: str):
+        response = self.try_assume_role(account_number)
         if "Credentials" in response:
             assumed_sts_session = Session(
                 aws_access_key_id=response["Credentials"]["AccessKeyId"],
@@ -87,49 +93,16 @@ class AccountsConnector(BaseConnector):
     def get_management_account_id(self) -> str:
         return self.management_account_sts_client.get_caller_identity()["Account"]
 
-    def generate_new_role(
-        self, child_account_id: str, role_name: str, assume_role_policy_document: dict
-    ) -> dict:
-        member_account_session = self.get_assumed_session(child_account_id, role_name)
-
-        iam = member_account_session.client("iam")
-        response = iam.create_role(
-            RoleName=DEFAULT_ROLE_NAME,
-            AssumeRolePolicyDocument=assume_role_policy_document,
-        )
-
-        iam.attach_role_policy(
-            RoleName=DEFAULT_ROLE_NAME,
-            PolicyArn=ADMIN_POLICY_ARN,
-        )
-
-        print("Role Created with Policy attached!")
-
-        return response
-
     def get_account_name(self, child_account_id: str) -> str:
         account_info = self.management_account_org_client.describe_account(
             AccountId=child_account_id
         )
         return account_info["Account"]["Name"]
 
-    def role_exists(self, member_account_id: str, role_name: str) -> bool:
-        account_session = self.get_assumed_session(
-            member_account_id, CONTROL_TOWER_ROLE_NAME
-        )
-        iam = account_session.client("iam")
-        try:
-            iam.get_role(RoleName=role_name)
-            return True
-        except iam.exceptions.NoSuchEntityException:
-            return False
-
     def get_assumed_role_info(self, member_account_id: str) -> dict:
-        account_session = self.get_assumed_session(
-            member_account_id, CONTROL_TOWER_ROLE_NAME
-        )
+        account_session = self.get_assumed_session(member_account_id)
         iam = account_session.client("iam")
-        role_info = iam.get_role(RoleName=DEFAULT_ROLE_NAME)
+        role_info = iam.get_role(RoleName=self.spaceone_role_name)
         return role_info
 
     def get_ou_info(self, ou_id: str) -> dict:
