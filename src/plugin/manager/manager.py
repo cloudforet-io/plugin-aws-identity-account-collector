@@ -65,7 +65,7 @@ class AccountsManager(BaseManager):
             account_name = self._account_connector.get_account_name(member_account_id)
             response_data = {}
             response_secret_data = {"account_id": member_account_id}
-            response_schema_id = "aws_access_key"
+            response_schema_id = "aws-secret-access-key"
 
             response_result = {
                 "name": account_name,
