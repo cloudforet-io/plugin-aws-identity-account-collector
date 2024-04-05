@@ -43,6 +43,7 @@ class TestSync(TestCase):
         "aws_secret_access_key": SAK,
         "aws_session_token": AST,
         "external_id": "9d46484b-039f-4407-8ffb-d5157fa64ecf",
+        "role_name": "SpaceoneRole",
     }
 
     def test_init(self):

@@ -33,7 +33,7 @@ class AccountsManager(BaseManager):
             if ou_name == SECURITY_OU_NAME:
                 self._sync_security_accounts(ou_id)
             else:
-                self._sync_other_member_accounts(management_account_id, ou_id)
+                self._sync_other_member_accounts(ou_id)
         return self.synced_accounts
 
     def _sync_other_member_accounts(self, ou_id: str) -> None:
@@ -109,4 +109,4 @@ class AccountsManager(BaseManager):
         role_info = self._account_connector.get_assumed_role_info(member_account_id)
         account_name = self._account_connector.get_account_name(member_account_id)
         role_arn = role_info["Role"]["Arn"]
-        return [account_name, self.external_id, role_arn]
+        return [account_name, role_arn]
