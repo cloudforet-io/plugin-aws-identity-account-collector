@@ -1,16 +1,27 @@
+import logging
 from functools import partial
 from boto3.session import Session
 from ..conf.account_conf import *
+from plugin.error.common import *
 from spaceone.core.connector import BaseConnector
+from spaceone.core.error import *
+
+__all__ = ["AccountsConnector"]
+
+_LOGGER = logging.getLogger("spaceone")
 
 
 def get_session(secret_data, region_name):
-    params = {
-        "aws_access_key_id": secret_data["aws_access_key_id"],
-        "aws_secret_access_key": secret_data["aws_secret_access_key"],
-        "region_name": region_name,
-    }
-    session = Session(**params)
+    try:
+        params = {
+            "aws_access_key_id": secret_data["aws_access_key_id"],
+            "aws_secret_access_key": secret_data["aws_secret_access_key"],
+            "region_name": region_name,
+        }
+        session = Session(**params)
+    except Exception as e:
+        _LOGGER.error(f"[ERROR] get_session :{e}")
+        raise ERROR_INVALID_TOKEN(token=e)
     return session
 
 
@@ -50,66 +61,97 @@ class AccountsConnector(BaseConnector):
         return self.__getattribute__(name)
 
     def get_accounts_ou(self, ou_id: str) -> list:
-        results = self._management_account_org_client.list_accounts_for_parent(
-            ParentId=ou_id
-        )["Accounts"]
+        try:
+            results = self._management_account_org_client.list_accounts_for_parent(
+                ParentId=ou_id
+            )["Accounts"]
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return results
 
     def get_ou_ids(self, parent_id: str) -> list:
-        paginator = self._management_account_org_client.get_paginator("list_children")
-        iterator = paginator.paginate(
-            ParentId=parent_id, ChildType="ORGANIZATIONAL_UNIT"
-        )
+        try:
+            paginator = self._management_account_org_client.get_paginator(
+                "list_children"
+            )
+            iterator = paginator.paginate(
+                ParentId=parent_id, ChildType="ORGANIZATIONAL_UNIT"
+            )
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return iterator
 
     def try_assume_role(self, account_number: str) -> dict:
-        partition = self.management_account_sts_client.get_caller_identity()[
-            "Arn"
-        ].split(":")[1]
-        role_arn = "arn:{}:iam::{}:role/{}".format(
-            partition, account_number, self.spaceone_role_name
-        )
-        result = self.management_account_sts_client.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName=str(account_number + "-" + self.spaceone_role_name),
-            ExternalId=self.external_id,
-        )
+        try:
+            partition = self.management_account_sts_client.get_caller_identity()[
+                "Arn"
+            ].split(":")[1]
+            role_arn = "arn:{}:iam::{}:role/{}".format(
+                partition, account_number, self.spaceone_role_name
+            )
+            result = self.management_account_sts_client.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName=str(account_number + "-" + self.spaceone_role_name),
+                ExternalId=self.external_id,
+            )
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return result
 
     def get_assumed_session(self, account_number: str):
         response = self.try_assume_role(account_number)
         if "Credentials" in response:
-            assumed_sts_session = Session(
-                aws_access_key_id=response["Credentials"]["AccessKeyId"],
-                aws_secret_access_key=response["Credentials"]["SecretAccessKey"],
-                aws_session_token=response["Credentials"]["SessionToken"],
-            )
+            try:
+                assumed_sts_session = Session(
+                    aws_access_key_id=response["Credentials"]["AccessKeyId"],
+                    aws_secret_access_key=response["Credentials"]["SecretAccessKey"],
+                    aws_session_token=response["Credentials"]["SessionToken"],
+                )
+            except Exception as e:
+                _LOGGER.error(f"[ERROR] get_assumed_session :{e}")
+                raise ERROR_INVALID_TOKEN(token=e)
             return assumed_sts_session
 
     def get_root_account_info(self) -> dict:
-        return self.management_account_org_client.list_roots()
+        try:
+            root_info = self.management_account_org_client.list_roots()
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
+        return root_info
 
     def get_management_account_id(self) -> str:
-        return self.management_account_sts_client.get_caller_identity()["Account"]
+        try:
+            management_account_id = (
+                self.management_account_sts_client.get_caller_identity()["Account"]
+            )
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
+        return management_account_id
 
     def get_account_name(self, child_account_id: str) -> str:
-        account_info = self.management_account_org_client.describe_account(
-            AccountId=child_account_id
-        )
+        try:
+            account_info = self.management_account_org_client.describe_account(
+                AccountId=child_account_id
+            )
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return account_info["Account"]["Name"]
 
     def get_assumed_role_info(self, member_account_id: str) -> dict:
         account_session = self.get_assumed_session(member_account_id)
-        iam = account_session.client("iam")
-        role_info = iam.get_role(RoleName=self.spaceone_role_name)
+        try:
+            iam = account_session.client("iam")
+            role_info = iam.get_role(RoleName=self.spaceone_role_name)
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return role_info
 
     def get_ou_info(self, ou_id: str) -> dict:
-        org_client = self.management_account_org_client
-        ou_info = org_client.describe_organizational_unit(OrganizationalUnitId=ou_id)
+        try:
+            org_client = self.management_account_org_client
+            ou_info = org_client.describe_organizational_unit(
+                OrganizationalUnitId=ou_id
+            )
+        except Exception as e:
+            raise ERROR_SYNC_PROCESS(message=e)
         return ou_info
-
-    def list_parents(self, account: str) -> list:
-        return self.management_account_org_client.list_parents(ChildId=account)[
-            "Parents"
-        ]
