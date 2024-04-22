@@ -20,13 +20,14 @@ class AccountsManager(BaseManager):
     def collect_accounts(self) -> list:
         root_info = self._account_connector.get_root_account_info()
         management_account_root_id = root_info["Roots"][0]["Id"]
-        management_account_root_name = root_info["Roots"][0]["Name"]
-        management_account_id = self._account_connector.get_management_account_id()
-        starting_path_dict = {
-            "name": management_account_root_name,
-            "resource_id": management_account_root_id,
-        }
-        self._map_all_ous(management_account_root_id, [starting_path_dict])
+        # management_account_root_name = root_info["Roots"][0]["Name"]
+        # management_account_id = self._account_connector.get_management_account_id()
+        # starting_path_dict = {
+        #     "name": management_account_root_name,
+        #     "resource_id": management_account_root_id,
+        # }
+
+        self._map_all_ous(management_account_root_id, [])
         for ou_id in self.account_paths:
             ou_info = self._account_connector.get_ou_info(ou_id)
             ou_name = ou_info["OrganizationalUnit"]["Name"]
