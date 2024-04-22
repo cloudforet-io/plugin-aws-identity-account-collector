@@ -16,8 +16,8 @@ class AccountsManager(BaseManager):
     def __init__(self, params):
         super().__init__()
         self._account_connector = AccountsConnector(**params)
-        self.external_id = params.get("secret_data", {}).get("external_id", None)
-        self.spaceone_role_name = params.get("secret_data", {}).get("role_name", None)
+        self.external_id = params.get("secret_data", {}).get("external_id", "")
+        self.spaceone_role_name = params.get("secret_data", {}).get("role_name", "")
         self.synced_accounts = []
         self.account_paths = {}
 

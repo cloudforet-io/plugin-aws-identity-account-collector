@@ -34,8 +34,8 @@ class AccountsConnector(BaseConnector):
         self._session = None
         self._management_account_org_client = None
         self._management_account_sts_client = None
-        self.external_id = self.secret_data.get("external_id", None)
-        self.spaceone_role_name = self.secret_data.get("role_name", None)
+        self.external_id = self.secret_data.get("external_id", "")
+        self.spaceone_role_name = self.secret_data.get("role_name", "")
 
     @property
     def session(self):
