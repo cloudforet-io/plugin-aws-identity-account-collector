@@ -1,4 +1,5 @@
 import copy
+import logging
 from collections import deque
 from spaceone.core.manager import BaseManager
 from spaceone.identity.plugin.account_collector.model.account_collect_response import (
@@ -6,6 +7,9 @@ from spaceone.identity.plugin.account_collector.model.account_collect_response i
 )
 from plugin.conf.account_conf import *
 from plugin.connector.connector import AccountsConnector
+
+
+_LOGGER = logging.getLogger("spaceone")
 
 
 class AccountsManager(BaseManager):
