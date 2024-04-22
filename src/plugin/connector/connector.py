@@ -8,7 +8,6 @@ def get_session(secret_data, region_name):
     params = {
         "aws_access_key_id": secret_data["aws_access_key_id"],
         "aws_secret_access_key": secret_data["aws_secret_access_key"],
-        "aws_session_token": secret_data.get("aws_session_token"),
         "region_name": region_name,
     }
     session = Session(**params)
