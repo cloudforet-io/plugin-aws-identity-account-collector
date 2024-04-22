@@ -14,8 +14,8 @@ _LOGGER = logging.getLogger("spaceone")
 def get_session(secret_data, region_name):
     try:
         params = {
-            "aws_access_key_id": secret_data["aws_access_key_id"],
-            "aws_secret_access_key": secret_data["aws_secret_access_key"],
+            "aws_access_key_id": secret_data.get("aws_access_key_id", None),
+            "aws_secret_access_key": secret_data.get("aws_secret_access_key", None),
             "region_name": region_name,
         }
         session = Session(**params)
@@ -34,8 +34,8 @@ class AccountsConnector(BaseConnector):
         self._session = None
         self._management_account_org_client = None
         self._management_account_sts_client = None
-        self.external_id = self.secret_data["external_id"]
-        self.spaceone_role_name = self.secret_data["role_name"]
+        self.external_id = self.secret_data.get("external_id", None)
+        self.spaceone_role_name = self.secret_data.get("role_name", None)
 
     @property
     def session(self):
