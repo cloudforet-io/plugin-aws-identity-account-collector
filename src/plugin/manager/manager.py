@@ -45,7 +45,9 @@ class AccountsManager(BaseManager):
         member_accounts = self._get_all_ou_member_accounts(ou_id)
         for member_account_id in member_accounts:
             account_name, role_arn = self._get_spaceone_role_info(member_account_id)
-            response_data = {}
+            response_data = {
+                "account_id": member_account_id,
+            }
             response_secret_data = {
                 "external_id": self.external_id,
                 "account_id": member_account_id,
@@ -68,7 +70,9 @@ class AccountsManager(BaseManager):
 
         for member_account_id in member_accounts:
             account_name = self._account_connector.get_account_name(member_account_id)
-            response_data = {}
+            response_data = {
+                "account_id": member_account_id,
+            }
             response_secret_data = {"account_id": member_account_id}
             response_schema_id = "aws-security-ou-secret"
 
