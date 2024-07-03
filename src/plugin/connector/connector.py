@@ -128,11 +128,14 @@ class AccountsConnector(BaseConnector):
             raise ERROR_SYNC_PROCESS(message=e)
         return management_account_id
 
-    def get_account_name(self, child_account_id: str) -> str:
+    def get_account_name(self, child_account_id: str) -> None or str:
         try:
             account_info = self.management_account_org_client.describe_account(
                 AccountId=child_account_id
             )
+            # Skip the account if it is not active
+            if account_info["Account"]["Status"] != "ACTIVE":
+                return None
         except Exception as e:
             raise ERROR_SYNC_PROCESS(message=e)
         return account_info["Account"]["Name"]

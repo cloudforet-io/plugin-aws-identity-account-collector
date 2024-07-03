@@ -8,7 +8,6 @@ from spaceone.identity.plugin.account_collector.model.account_collect_response i
 from plugin.conf.account_conf import *
 from plugin.connector.connector import AccountsConnector
 
-
 _LOGGER = logging.getLogger("spaceone")
 
 
@@ -70,18 +69,17 @@ class AccountsManager(BaseManager):
 
         for member_account_id in member_accounts:
             account_name = self._account_connector.get_account_name(member_account_id)
-            response_data = {
-                "account_id": member_account_id,
-            }
-            response_secret_data = {"account_id": member_account_id}
-            response_schema_id = "aws-security-ou-secret"
+
+            # If account is not active, skip
+            if account_name is None:
+                continue
 
             response_result = {
                 "name": account_name,
-                "data": response_data,
+                "data": {"account_id": member_account_id},
                 "resource_id": member_account_id,
-                "secret_schema_id": response_schema_id,
-                "secret_data": response_secret_data,
+                "secret_schema_id": "aws-security-ou-secret",
+                "secret_data": {"account_id": member_account_id},
                 "location": self.account_paths[ou_id],
             }
 
