@@ -1,5 +1,7 @@
 import logging
 from functools import partial
+from typing import Union
+
 from boto3.session import Session
 from ..conf.account_conf import *
 from plugin.error.common import *
@@ -128,17 +130,15 @@ class AccountsConnector(BaseConnector):
             raise ERROR_SYNC_PROCESS(message=e)
         return management_account_id
 
-    def get_account_name(self, child_account_id: str) -> None or str:
+    def get_account_name(self, child_account_id: str) -> Union[str, None]:
         try:
             account_info = self.management_account_org_client.describe_account(
                 AccountId=child_account_id
             )
-            # Skip the account if it is not active
-            if account_info["Account"]["Status"] != "ACTIVE":
-                return None
+            if account_info["Account"]["Status"] == "ACTIVE":
+                return account_info["Account"]["Name"]
         except Exception as e:
             raise ERROR_SYNC_PROCESS(message=e)
-        return account_info["Account"]["Name"]
 
     def get_assumed_role_info(self, member_account_id: str) -> dict:
         account_session = self.get_assumed_session(member_account_id)

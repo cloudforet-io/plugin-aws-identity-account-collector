@@ -68,22 +68,18 @@ class AccountsManager(BaseManager):
         member_accounts = self._get_all_ou_member_accounts(ou_id)
 
         for member_account_id in member_accounts:
-            account_name = self._account_connector.get_account_name(member_account_id)
-
-            # If account is not active, skip
-            if account_name is None:
-                continue
-
-            response_result = {
-                "name": account_name,
-                "data": {"account_id": member_account_id},
-                "resource_id": member_account_id,
-                "secret_schema_id": "aws-security-ou-secret",
-                "secret_data": {"account_id": member_account_id},
-                "location": self.account_paths[ou_id],
-            }
-
-            self.synced_accounts.append(AccountResponse(**response_result).dict())
+            if account_name := self._account_connector.get_account_name(
+                member_account_id
+            ):
+                response_result = {
+                    "name": account_name,
+                    "data": {"account_id": member_account_id},
+                    "resource_id": member_account_id,
+                    "secret_schema_id": "aws-security-ou-secret",
+                    "secret_data": {"account_id": member_account_id},
+                    "location": self.account_paths[ou_id],
+                }
+                self.synced_accounts.append(AccountResponse(**response_result).dict())
 
     def _map_all_ous(self, parent_ou_id: str, path: list) -> None:
         dq = deque()
