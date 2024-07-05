@@ -43,26 +43,33 @@ class AccountsManager(BaseManager):
     def _sync_other_member_accounts(self, ou_id: str) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
         for member_account_id in member_accounts:
-            account_name, role_arn = self._get_spaceone_role_info(member_account_id)
-            response_data = {
-                "account_id": member_account_id,
-            }
-            response_secret_data = {
-                "external_id": self.external_id,
-                "account_id": member_account_id,
-                "role_arn": role_arn,
-            }
-            response_schema_id = "aws-secret-assume-role"
+            if account_name := self._account_connector.get_account_name(
+                member_account_id
+            ):
+                role_arn_info = self._account_connector.get_assumed_role_info(
+                    member_account_id
+                )
+                role_arn = role_arn_info["Role"]["Arn"]
 
-            response_result = {
-                "name": account_name,
-                "data": response_data,
-                "resource_id": member_account_id,
-                "secret_schema_id": response_schema_id,
-                "secret_data": response_secret_data,
-                "location": self.account_paths[ou_id],
-            }
-            self.synced_accounts.append(AccountResponse(**response_result).dict())
+                response_data = {
+                    "account_id": member_account_id,
+                }
+                response_secret_data = {
+                    "external_id": self.external_id,
+                    "account_id": member_account_id,
+                    "role_arn": role_arn,
+                }
+                response_schema_id = "aws-secret-assume-role"
+
+                response_result = {
+                    "name": account_name,
+                    "data": response_data,
+                    "resource_id": member_account_id,
+                    "secret_schema_id": response_schema_id,
+                    "secret_data": response_secret_data,
+                    "location": self.account_paths[ou_id],
+                }
+                self.synced_accounts.append(AccountResponse(**response_result).dict())
 
     def _sync_security_accounts(self, ou_id: str) -> None:
         member_accounts = self._get_all_ou_member_accounts(ou_id)
@@ -107,9 +114,3 @@ class AccountsManager(BaseManager):
         for result in results:
             accounts.append(result["Id"])
         return accounts
-
-    def _get_spaceone_role_info(self, member_account_id: str) -> list:
-        if account_name := self._account_connector.get_account_name(member_account_id):
-            role_info = self._account_connector.get_assumed_role_info(member_account_id)
-            role_arn = role_info["Role"]["Arn"]
-            return [account_name, role_arn]
