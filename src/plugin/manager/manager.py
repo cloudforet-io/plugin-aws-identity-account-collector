@@ -109,7 +109,7 @@ class AccountsManager(BaseManager):
         return accounts
 
     def _get_spaceone_role_info(self, member_account_id: str) -> list:
-        role_info = self._account_connector.get_assumed_role_info(member_account_id)
-        account_name = self._account_connector.get_account_name(member_account_id)
-        role_arn = role_info["Role"]["Arn"]
-        return [account_name, role_arn]
+        if account_name := self._account_connector.get_account_name(member_account_id):
+            role_info = self._account_connector.get_assumed_role_info(member_account_id)
+            role_arn = role_info["Role"]["Arn"]
+            return [account_name, role_arn]
